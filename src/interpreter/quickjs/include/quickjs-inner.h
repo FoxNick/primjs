@@ -3220,4 +3220,10 @@ void trig_gc(JSMallocState *s, size_t size, bool is_outer = false);
 QJS_HIDE pid_t get_tid();
 #endif
 
+#ifdef ENABLE_ASAN
+#define RESERVE_STACK_SIZE 100 * 1024
+#else
+#define RESERVE_STACK_SIZE 52 * 1024
+#endif
+
 #endif  // SRC_INTERPRETER_QUICKJS_INCLUDE_QUICKJS_INNER_H_

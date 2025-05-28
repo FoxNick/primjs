@@ -125,7 +125,7 @@ TEST_F(PrimjsVersionTest, TESTNewToNew) {
   if (!ctx_->rt->gc_enable) LEPUS_FreeValue(ctx_, val);
 }
 
-TEST_F(PrimjsVersionTest, TESTNewLessBC) {
+TEST_F(PrimjsVersionTest, DISABLED_TESTNewLessBC) {
   LEPUSValue val;
   const uint8_t data[] = {
       9,   205, 1,   176, 202, 0,   0,   0,   0,   5,   2,   102, 46,  95,

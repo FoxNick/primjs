@@ -1729,7 +1729,7 @@ QJS_STATIC inline uintptr_t get_thread_stack_limit() {
   stack = pthread_get_stackaddr_np(tid);
   stack_size = pthread_get_stacksize_np(tid);
   stack_limit = reinterpret_cast<uintptr_t>(stack) - stack_size +
-                (52 * 1024);  // reserve 52k
+                RESERVE_STACK_SIZE;  // reserve 52k
 #else
   pthread_getattr_np(tid, &attr);
   pthread_attr_getstack(&attr, &stack, &stack_size);
@@ -18418,6 +18418,14 @@ restart:
 
       CASE(OP_nop) : BREAK;
 #if SHORT_OPCODES
+      CASE(OP_is_undefined_or_null)
+          : if (LEPUS_VALUE_IS_UNDEFINED(sp[-1]) ||
+                LEPUS_VALUE_IS_NULL(sp[-1])) {
+        goto set_true;
+      }
+      else {
+        goto free_and_set_false;
+      }
       CASE(OP_is_undefined) : if (LEPUS_VALUE_IS_UNDEFINED(sp[-1])) {
         goto set_true;
       }
@@ -22001,8 +22009,8 @@ fail:
   return -1;
 }
 
-void optional_chain_test(JSParseState *s, int *poptional_chaining_label,
-                         int drop_count) {
+void optional_chain_test_old(JSParseState *s, int *poptional_chaining_label,
+                             int drop_count) {
   int label_next_1, label_next_2, i;
   if (*poptional_chaining_label < 0) *poptional_chaining_label = new_label(s);
   /* XXX: could be more efficient with a specific opcode */
@@ -22019,6 +22027,27 @@ void optional_chain_test(JSParseState *s, int *poptional_chaining_label,
   emit_op(s, OP_undefined);
   emit_goto(s, OP_goto, *poptional_chaining_label);
   emit_label(s, label_next_2);
+  return;
+}
+
+void optional_chain_test(JSParseState *s, int *poptional_chaining_label,
+                         int drop_count) {
+  if (s->ctx->is_lepusng) {
+    optional_chain_test_old(s, poptional_chaining_label, drop_count);
+    return;
+  }
+  int label_next, i;
+  if (*poptional_chaining_label < 0) *poptional_chaining_label = new_label(s);
+  /* XXX: could be more efficient with a specific opcode */
+  emit_op(s, OP_dup);
+  emit_op(s, OP_is_undefined_or_null);
+  label_next = emit_goto(s, OP_if_false, -1);
+  for (i = 0; i < drop_count; i++) emit_op(s, OP_drop);
+
+  emit_op(s, OP_undefined);
+  emit_goto(s, OP_goto, *poptional_chaining_label);
+  emit_label(s, label_next);
+  return;
 }
 
 QJS_STATIC __exception int js_parse_postfix_expr(JSParseState *s,
@@ -24510,7 +24539,11 @@ __exception int js_parse_cond_expr(JSParseState *s, int parse_flags) {
       if (next_token(s)) return -1;
 
       emit_op(s, OP_dup);
-      emit_op(s, OP_is_undefined);
+      if (s->ctx->is_lepusng) {
+        emit_op(s, OP_is_undefined);
+      } else {
+        emit_op(s, OP_is_undefined_or_null);
+      }
       emit_goto(s, OP_if_false, label1);
       emit_op(s, OP_drop);
 
